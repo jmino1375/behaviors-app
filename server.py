@@ -58,10 +58,13 @@ async def websocket_endpoint(ws: WebSocket):
 # ── Categorize endpoint ────────────────────────────────────────────────────
 @app.post("/categorize")
 async def categorize_behaviors():
-    above_list = "\n".join(f"{i+1}. {b}" for i, b in enumerate(behaviors["above"])) or "(ninguno)"
-    below_list = "\n".join(f"{i+1}. {b}" for i, b in enumerate(behaviors["below"])) or "(ninguno)"
+    import traceback
+    from fastapi.responses import JSONResponse
+    try:
+        above_list = "\n".join(f"{i+1}. {b}" for i, b in enumerate(behaviors["above"])) or "(ninguno)"
+        below_list = "\n".join(f"{i+1}. {b}" for i, b in enumerate(behaviors["below"])) or "(ninguno)"
 
-    prompt = f"""Analiza los siguientes comportamientos y agrúpalos en categorías temáticas comunes. Responde ÚNICAMENTE con JSON válido.
+        prompt = f"""Analiza los siguientes comportamientos y agrúpalos en categorías temáticas comunes. Responde ÚNICAMENTE con JSON válido.
 
 COMPORTAMIENTOS SOBRE LA LÍNEA:
 {above_list}
@@ -85,21 +88,25 @@ Reglas:
 - Cada comportamiento debe aparecer en exactamente una categoría
 - Si no hay comportamientos en un tipo, devuelve array vacío"""
 
-    client = anthropic.Anthropic()
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=2048,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    text = message.content[0].text.strip()
-    match = re.search(r"\{[\s\S]*\}", text)
-    if not match:
-        return {"error": "No JSON found in response"}
+        ai_client = anthropic.Anthropic()
+        message = ai_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        text = message.content[0].text.strip()
+        match = re.search(r"\{[\s\S]*\}", text)
+        if not match:
+            return JSONResponse(status_code=500, content={"error": "No JSON in Claude response", "raw": text[:200]})
 
-    global categories
-    categories = json.loads(match.group())
-    await broadcast({"type": "categories_updated", "categories": categories})
-    return {"success": True, "categories": categories}
+        global categories
+        categories = json.loads(match.group())
+        await broadcast({"type": "categories_updated", "categories": categories})
+        return {"success": True, "categories": categories}
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"CATEGORIZE ERROR: {tb}")
+        return JSONResponse(status_code=500, content={"error": str(e), "detail": tb[-500:]})
 
 
 # ── Static files ───────────────────────────────────────────────────────────
