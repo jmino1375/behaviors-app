@@ -209,6 +209,7 @@
       btn.innerHTML = '<span class="spinner"></span> Procesando...';
       try {
         const r = await fetch('/categorize', { method: 'POST' });
+        if (!r.ok) { const t = await r.text(); throw new Error(`Error del servidor: ${t.slice(0,120)}`); }
         const d = await r.json();
         if (d.categories) {
           data.categories = d.categories;
