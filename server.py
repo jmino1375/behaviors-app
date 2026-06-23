@@ -12,6 +12,13 @@ from starlette.responses import FileResponse
 
 app = FastAPI()
 
+# Startup check
+api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+if api_key:
+    print(f"ANTHROPIC_API_KEY found: sk-ant-...{api_key[-4:]}")
+else:
+    print("WARNING: ANTHROPIC_API_KEY is NOT set!")
+
 # ── State ──────────────────────────────────────────────────────────────────
 behaviors: dict[str, list[str]] = {"above": [], "below": []}
 categories: dict[str, list] = {"above": [], "below": []}
