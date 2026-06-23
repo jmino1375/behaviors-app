@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Display — Comportamientos</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      min-height: 100vh;
+      padding: 1.5rem;
+    }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+    h1 { font-size: 1.6rem; color: #f7fafc; }
+    .header-right { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .badge {
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .badge-above { background: rgba(72,187,120,0.2); color: #68d391; border: 1px solid #48bb78; }
+    .badge-below { background: rgba(245,101,101,0.2); color: #fc8181; border: 1px solid #f56565; }
+    .btn {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-cat { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    .btn-toggle { background: rgba(255,255,255,0.08); color: #a0aec0; border: 1px solid rgba(255,255,255,0.15); }
+    .btn-toggle:hover { background: rgba(255,255,255,0.15); }
+
+    .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    @media (max-width: 700px) { .columns { grid-template-columns: 1fr; } }
+
+    .col-header {
+      display: flex; align-items: center; gap: 0.6rem;
+      font-size: 1.1rem; font-weight: 700;
+      margin-bottom: 1rem; padding-bottom: 0.75rem;
+      border-bottom: 2px solid;
+    }
+    .col-above .col-header { color: #68d391; border-color: #38a169; }
+    .col-below .col-header { color: #fc8181; border-color: #c53030; }
+
+    .cat-block {
+      background: rgba(255,255,255,0.04);
+      border-radius: 12px;
+      padding: 1rem 1.2rem;
+      margin-bottom: 1rem;
+      border: 1px solid rgba(255,255,255,0.08);
+      animation: fadeIn 0.4s ease;
+    }
+    .cat-title {
+      font-size: 0.78rem; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.06em;
+      color: #a0aec0; margin-bottom: 0.6rem;
+    }
+    .cat-item {
+      font-size: 0.93rem; color: #e2e8f0;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      line-height: 1.45;
+    }
+    .cat-item:last-child { border-bottom: none; }
+
+    .raw-item {
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 0.6rem;
+      font-size: 0.93rem;
+      border-left: 3px solid;
+      line-height: 1.4;
+      animation: slideIn 0.3s ease;
+    }
+    .col-above .raw-item { border-color: #48bb78; }
+    .col-below .raw-item { border-color: #f56565; }
+
+    .empty { color: #4a5568; font-size: 0.9rem; text-align: center; padding: 2rem; }
+
+    .spinner {
+      width: 13px; height: 13px;
+      border: 2px solid rgba(255,255,255,0.35);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      display: inline-block; vertical-align: middle;
+    }
+    .status { margin-top: 1.2rem; text-align: center; font-size: 0.8rem; color: #4a5568; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Tablero de Comportamientos</h1>
+    <div class="header-right">
+      <span class="badge badge-above">▲ <span id="cnt-above">0</span> sobre</span>
+      <span class="badge badge-below">▼ <span id="cnt-below">0</span> bajo</span>
+      <button class="btn btn-toggle" onclick="toggleView()" id="btn-toggle">Lista</button>
+      <button class="btn btn-cat" onclick="categorize()" id="btn-cat">✦ Categorizar con IA</button>
+    </div>
+  </header>
+
+  <div class="columns">
+    <div class="col-above">
+      <div class="col-header">▲ Sobre la línea</div>
+      <div id="above-content"><p class="empty">Esperando aportes...</p></div>
+    </div>
+    <div class="col-below">
+      <div class="col-header">▼ Bajo la línea</div>
+      <div id="below-content"><p class="empty">Esperando aportes...</p></div>
+    </div>
+  </div>
+
+  <div class="status" id="status">Conectando...</div>
+
+  <script>
+    let ws;
+    let data = { behaviors: { above: [], below: [] }, categories: { above: [], below: [] } };
+    let showCats = false;
+
+    function connect() {
+      ws = new WebSocket(`ws://${location.host}/ws`);
+      ws.onopen = () => setStatus('En vivo');
+      ws.onclose = () => { setStatus('Reconectando...'); setTimeout(connect, 2000); };
+      ws.onerror = () => ws.close();
+      ws.onmessage = ({ data: raw }) => {
+        const msg = JSON.parse(raw);
+        if (msg.type === 'state') {
+          data.behaviors = msg.behaviors;
+          data.categories = msg.categories;
+          render();
+        } else if (msg.type === 'new_behavior') {
+          data.behaviors[msg.kind].push(msg.text);
+          updateCounters();
+          if (!showCats) renderRaw();
+          setStatus(`Nuevo aporte ${msg.kind === 'above' ? 'sobre' : 'bajo'} la línea`);
+        } else if (msg.type === 'categories_updated') {
+          data.categories = msg.categories;
+          if (showCats) renderCats();
+          setStatus('Categorías actualizadas por IA');
+        }
+      };
+    }
+
+    function render() { updateCounters(); showCats ? renderCats() : renderRaw(); }
+
+    function updateCounters() {
+      document.getElementById('cnt-above').textContent = data.behaviors.above.length;
+      document.getElementById('cnt-below').textContent = data.behaviors.below.length;
+    }
+
+    function renderRaw() {
+      ['above','below'].forEach(k => {
+        const el = document.getElementById(`${k}-content`);
+        const items = data.behaviors[k];
+        el.innerHTML = items.length
+          ? items.map(t => `<div class="raw-item">${esc(t)}</div>`).join('')
+          : '<p class="empty">Sin aportes aún...</p>';
+      });
+    }
+
+    function renderCats() {
+      ['above','below'].forEach(k => {
+        const el = document.getElementById(`${k}-content`);
+        const cats = data.categories[k] || [];
+        if (!cats.length) {
+          el.innerHTML = data.behaviors[k].length
+            ? '<p class="empty">Presiona "Categorizar con IA" para agrupar</p>'
+            : '<p class="empty">Sin aportes aún...</p>';
+          return;
+        }
+        el.innerHTML = cats.map(c => `
+          <div class="cat-block">
+            <div class="cat-title">${esc(c.category)}</div>
+            ${c.items.map(i => `<div class="cat-item">${esc(i)}</div>`).join('')}
+          </div>`).join('');
+      });
+    }
+
+    function toggleView() {
+      showCats = !showCats;
+      document.getElementById('btn-toggle').textContent = showCats ? 'Categorías' : 'Lista';
+      render();
+    }
+
+    async function categorize() {
+      const btn = document.getElementById('btn-cat');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span> Procesando...';
+      try {
+        const r = await fetch('/categorize', { method: 'POST' });
+        const d = await r.json();
+        if (d.categories) {
+          data.categories = d.categories;
+          showCats = true;
+          document.getElementById('btn-toggle').textContent = 'Categorías';
+          renderCats();
+        }
+      } catch(e) { setStatus('Error: ' + e.message); }
+      btn.disabled = false;
+      btn.innerHTML = '✦ Categorizar con IA';
+    }
+
+    function setStatus(msg) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.textContent = 'En vivo'; }, 4000);
+    }
+
+    function esc(s) {
+      return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }
+
+    connect();
+  </script>
+</body>
+</html>
