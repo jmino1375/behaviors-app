@@ -138,7 +138,8 @@
     let showCats = false;
 
     function connect() {
-      ws = new WebSocket(`ws://${location.host}/ws`);
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}/ws`);
       ws.onopen = () => setStatus('En vivo');
       ws.onclose = () => { setStatus('Reconectando...'); setTimeout(connect, 2000); };
       ws.onerror = () => ws.close();

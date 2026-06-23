@@ -140,7 +140,8 @@
     let ws, counts = { above: 0, below: 0 };
 
     function connect() {
-      ws = new WebSocket(`ws://${location.host}/ws`);
+      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+      ws = new WebSocket(`${proto}://${location.host}/ws`);
       ws.onopen = () => setConn(true);
       ws.onclose = () => { setConn(false); setTimeout(connect, 2000); };
       ws.onerror = () => ws.close();
