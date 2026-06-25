@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import re
@@ -5,8 +6,10 @@ import traceback
 from datetime import datetime
 
 import anthropic
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -135,15 +138,60 @@ Reglas:
 @app.get("/download")
 def download_data():
     now = datetime.now().strftime("%Y%m%d_%H%M%S")
-    content = {
-        "exportado": now,
-        "sobre_la_linea": behaviors["above"],
-        "bajo_la_linea": behaviors["below"],
-        "categorias": categories,
-    }
-    return JSONResponse(
-        content=content,
-        headers={"Content-Disposition": f"attachment; filename=comportamientos_{now}.json"}
+    wb = openpyxl.Workbook()
+
+    green_fill = PatternFill("solid", fgColor="1E4620")
+    red_fill   = PatternFill("solid", fgColor="4C1515")
+    green_hdr  = PatternFill("solid", fgColor="2D6A31")
+    red_hdr    = PatternFill("solid", fgColor="7B2020")
+    bold       = Font(bold=True, color="FFFFFF")
+    white      = Font(color="FFFFFF")
+    wrap       = Alignment(wrap_text=True, vertical="top")
+
+    def make_sheet(ws, kind, fill, hdr_fill):
+        ws.column_dimensions["A"].width = 60
+        ws.column_dimensions["B"].width = 30
+        # Header
+        ws["A1"] = "Comportamiento"
+        ws["B1"] = "Categoría"
+        for cell in [ws["A1"], ws["B1"]]:
+            cell.font = bold
+            cell.fill = hdr_fill
+            cell.alignment = wrap
+
+        # Build category lookup
+        cat_map = {}
+        for cat in (categories.get(kind) or []):
+            for item in cat.get("items", []):
+                cat_map[item] = cat.get("category", "")
+
+        items = behaviors[kind]
+        for i, text in enumerate(items, start=2):
+            ws.cell(i, 1, text).fill = fill
+            ws.cell(i, 1).font = white
+            ws.cell(i, 1).alignment = wrap
+            ws.cell(i, 2, cat_map.get(text, "")).fill = fill
+            ws.cell(i, 2).font = white
+            ws.cell(i, 2).alignment = wrap
+
+    # Sheet 1: Sobre la línea
+    ws1 = wb.active
+    ws1.title = "Sobre la línea"
+    make_sheet(ws1, "above", green_fill, green_hdr)
+
+    # Sheet 2: Bajo la línea
+    ws2 = wb.create_sheet("Bajo la línea")
+    make_sheet(ws2, "below", red_fill, red_hdr)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    filename = f"comportamientos_{now}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
     )
 
 
