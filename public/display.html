@@ -44,6 +44,25 @@
     .btn-cat { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
     .btn-toggle { background: rgba(255,255,255,0.08); color: #a0aec0; border: 1px solid rgba(255,255,255,0.15); }
     .btn-toggle:hover { background: rgba(255,255,255,0.15); }
+    .btn-download { background: rgba(72,187,120,0.15); color: #68d391; border: 1px solid #48bb78; }
+    .btn-download:hover { background: rgba(72,187,120,0.25); }
+    .btn-clear { background: rgba(245,101,101,0.15); color: #fc8181; border: 1px solid #f56565; }
+    .btn-clear:hover { background: rgba(245,101,101,0.25); }
+    .confirm-bar {
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(245,101,101,0.15);
+      border: 1px solid #f56565;
+      border-radius: 8px;
+      padding: 0.4rem 0.75rem;
+      font-size: 0.85rem;
+      color: #fc8181;
+    }
+    .confirm-bar.show { display: flex; }
+    .confirm-bar button { padding: 0.25rem 0.6rem; border-radius: 5px; border: none; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .confirm-yes { background: #f56565; color: white; }
+    .confirm-no { background: rgba(255,255,255,0.1); color: #a0aec0; }
 
     .columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
     @media (max-width: 700px) { .columns { grid-template-columns: 1fr; } }
@@ -115,7 +134,14 @@
       <span class="badge badge-above">▲ <span id="cnt-above">0</span> sobre</span>
       <span class="badge badge-below">▼ <span id="cnt-below">0</span> bajo</span>
       <button class="btn btn-toggle" onclick="toggleView()" id="btn-toggle">Lista</button>
+      <button class="btn btn-download" onclick="download()">⬇ Descargar</button>
+      <button class="btn btn-clear" onclick="showConfirm()">🗑 Borrar todo</button>
       <button class="btn btn-cat" onclick="categorize()" id="btn-cat">✦ Categorizar con IA</button>
+    </div>
+    <div class="confirm-bar" id="confirm-bar">
+      ¿Borrar todos los datos?
+      <button class="confirm-yes" onclick="clearData()">Sí, borrar</button>
+      <button class="confirm-no" onclick="hideConfirm()">Cancelar</button>
     </div>
   </header>
 
@@ -154,6 +180,10 @@
           updateCounters();
           if (!showCats) renderRaw();
           setStatus(`Nuevo aporte ${msg.kind === 'above' ? 'sobre' : 'bajo'} la línea`);
+        } else if (msg.type === 'cleared') {
+          data = { behaviors: { above: [], below: [] }, categories: { above: [], below: [] } };
+          render();
+          setStatus('Datos borrados');
         } else if (msg.type === 'categories_updated') {
           data.categories = msg.categories;
           if (showCats) renderCats();
@@ -220,6 +250,18 @@
       } catch(e) { setStatus('Error: ' + e.message); }
       btn.disabled = false;
       btn.innerHTML = '✦ Categorizar con IA';
+    }
+
+    function download() {
+      window.location.href = '/download';
+    }
+
+    function showConfirm() { document.getElementById('confirm-bar').classList.add('show'); }
+    function hideConfirm() { document.getElementById('confirm-bar').classList.remove('show'); }
+
+    async function clearData() {
+      hideConfirm();
+      await fetch('/clear', { method: 'POST' });
     }
 
     function setStatus(msg) {
